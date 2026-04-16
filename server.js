@@ -13,6 +13,16 @@ app.use('/auth', authRoutes);
 app.use('/sequence', sequenceRoutes);
 app.use('/sequences', sequencesRoutes);
 
+app.get('/templates', (req, res) => {
+  try {
+    const templates = require('./templates.json');
+    res.json(templates);
+  } catch (err) {
+    console.error('[Templates] Failed to load templates.json:', err.message);
+    res.status(500).json({ error: 'Failed to load templates' });
+  }
+});
+
 // Logging dashboard (served at the backend root per PRD).
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));

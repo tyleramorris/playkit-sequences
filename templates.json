@@ -1,0 +1,8 @@
+[
+  {
+    "id": "call-1-follow-up-1",
+    "name": "Call #1 Follow Up #1",
+    "subject": "Playkit x {{companyName}} Next Steps",
+    "body": "Hi {{firstName}},\n\nSo great chatting today! Thank you for taking the time. We're excited about the opportunity to work together. Here's a quick recap of what we discussed:\n\nOur Offer\n- [NUMBER] creators producing [NUMBER] unique videos/mo on TikTok + [NUMBER] cross-posted to IG for $[PRICE]/mo (drops to $[RETAINER PRICE]/mo on a 3-month retainer)\n- A dedicated UGC Engineer owns strategy, content review, and daily iteration end to end\n- Each creator posts 3x per weekday\n- Organic and paid usage rights to all content pieces\n- Access to Trackr, our in-house tracking software\n\nFind our case studies here, as well as the deck we went through together here.\n\nNext Steps\n1. We have two slots open for a [START DATE] start date with first videos going live. I've attached the contract for review, let me know if there are any questions here.\n2. Once confirmed, I'll send the executable version and invoice and pencil you in for that start date.\n3. From there: Slack invite, strategy call with your UGC Engineer, and we're off!\n\nI've cc'd our Chief of Staff, Tyler Morris, who will help with communications moving forward and make sure everything runs smoothly.\n\nLet me know what questions come up after you loop in your team!\n\nBest,\nJulia"
+  }
+]
