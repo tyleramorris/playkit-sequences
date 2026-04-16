@@ -1,12 +1,11 @@
 import type {App} from "attio"
 import {startEmailSequence} from "./start-sequence-action"
-import {showWeatherForecast} from "./weather-forecast-action"
 import "./app.settings"
 
 export const app: App = {
     record: {
         /** @see https://docs.attio.com/sdk/entry-points/record-action  */
-        actions: [showWeatherForecast, startEmailSequence],
+        actions: [startEmailSequence],
         /** @see https://docs.attio.com/sdk/entry-points/bulk-record-action */
         bulkActions: [],
         /** @see https://docs.attio.com/sdk/entry-points/record-widget */

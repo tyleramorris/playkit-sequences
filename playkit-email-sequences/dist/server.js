@@ -4428,7 +4428,9 @@ async function fetchCompanyData(companyRecordId) {
     throw new Error("Failed to parse company response");
   }
   const companyData = CompanyRecordResponseSchema.parse(companyJson);
-  const companyName = companyData.data.values.name?.[0]?.value ?? "Unknown Company";
+  const rawName = companyData.data.values.name?.[0]?.value ?? "Unknown Company";
+  const domains = companyData.data.values.domains?.map((d) => d.domain) ?? [];
+  const companyName = domains.length > 0 && domains.some((d) => rawName === d) ? rawName.split(".")[0].charAt(0).toUpperCase() + rawName.split(".")[0].slice(1) : rawName;
   const teamMemberIds = companyData.data.values.team?.filter((ref) => ref.target_object === "people").map((ref) => ref.target_record_id) ?? [];
   if (teamMemberIds.length === 0) {
     return { name: companyName, people: [] };
@@ -4470,7 +4472,7 @@ async function fetchCompanyData(companyRecordId) {
   }).filter((p) => p.email.length > 0);
   return { name: companyName, people };
 }
-var import_server, ATTIO_API_BASE, attioHeaders, NameValueSchema, EmailValueSchema, RecordValueSchema, PersonRecordSchema, PeopleQueryResponseSchema, CompanyNameValueSchema, CompanyRecordSchema, CompanyRecordResponseSchema;
+var import_server, ATTIO_API_BASE, attioHeaders, NameValueSchema, EmailValueSchema, RecordValueSchema, PersonRecordSchema, PeopleQueryResponseSchema, CompanyNameValueSchema, DomainValueSchema, CompanyRecordSchema, CompanyRecordResponseSchema;
 var init_fetch_company_data_server = __esm({
   "src/fetch-company-data.server.ts"() {
     "use strict";
@@ -4509,12 +4511,16 @@ var init_fetch_company_data_server = __esm({
     CompanyNameValueSchema = external_exports.object({
       value: external_exports.string().nullable().optional()
     });
+    DomainValueSchema = external_exports.object({
+      domain: external_exports.string()
+    });
     CompanyRecordSchema = external_exports.object({
       id: external_exports.object({
         record_id: external_exports.string()
       }),
       values: external_exports.object({
         name: external_exports.array(CompanyNameValueSchema).optional(),
+        domains: external_exports.array(DomainValueSchema).optional(),
         team: external_exports.array(RecordValueSchema).optional()
       })
     });
@@ -4530,7 +4536,7 @@ var settingsSchema = {
 };
 var app_settings_default = settingsSchema;
 
-// ../../../../private/var/folders/cr/34cvn9s16cx908kpzrghwbxc0000gn/T/tmp-71037-5tl1lPYGE6Qz-.js
+// ../../../../private/var/folders/cr/34cvn9s16cx908kpzrghwbxc0000gn/T/tmp-2154-ACsPA13pN9Ru-.js
 registerSettingsSchema(app_settings_default);
 var modules = /* @__PURE__ */ new Map();
 var webhookModules = /* @__PURE__ */ new Map();

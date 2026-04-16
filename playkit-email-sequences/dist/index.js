@@ -346,13 +346,14 @@
     const body = template.body.replace("{{companyName}}", companyName).replace("{{firstName}}", firstName);
     return { subject, body };
   }
-  function TemplateSyncer({
+  function FormSyncer({
     templateId,
+    recipientEmail,
     onSync
   }) {
     (0, import_react.useEffect)(() => {
-      onSync(templateId);
-    }, [templateId, onSync]);
+      onSync(templateId, recipientEmail);
+    }, [templateId, recipientEmail, onSync]);
     return import_react.default.createElement(import_react.default.Fragment);
   }
   function SequenceForm({
@@ -364,7 +365,11 @@
     const [submitError, setSubmitError] = (0, import_react.useState)(null);
     const lastTemplateRef = (0, import_react.useRef)(templates[0].id);
     const defaultTemplate = templates[0];
-    const recipientOptions = companyData.people.map((person) => ({
+    const externalPeople = companyData.people.filter(
+      (person) => !person.email.endsWith("@playkit.xyz")
+    );
+    const lastRecipientRef = (0, import_react.useRef)(externalPeople[0]?.email ?? "");
+    const recipientOptions = externalPeople.map((person) => ({
       label: `${person.name} (${person.email})`,
       value: person.email
     }));
@@ -376,7 +381,7 @@
       { label: "Standard (1, 2, 2 business days)", value: "standard" },
       { label: "Delayed (1, 4, 4 business days)", value: "delayed" }
     ];
-    const defaultRecipient = companyData.people[0];
+    const defaultRecipient = externalPeople[0];
     const defaultFirstName = defaultRecipient?.name.split(" ")[0] ?? "";
     const { subject: defaultSubject, body: defaultBody } = resolveTemplate({
       template: defaultTemplate,
@@ -389,7 +394,7 @@
         template: import_client.Forms.string(),
         cadence: import_client.Forms.string(),
         recipient: import_client.Forms.string(),
-        cc: import_client.Forms.string().optional(),
+        cc: import_client.Forms.array(import_client.Forms.string()),
         subject: import_client.Forms.string(),
         body: import_client.Forms.string().multiline()
       },
@@ -397,35 +402,40 @@
         template: defaultTemplate.id,
         cadence: "standard",
         recipient: defaultRecipient?.email ?? "",
-        cc: "",
+        cc: [],
         subject: defaultSubject,
         body: defaultBody
       }
     );
-    const syncTemplate = (0, import_react.useCallback)(
-      (currentTemplateId) => {
-        if (currentTemplateId === lastTemplateRef.current) {
+    const syncForm = (0, import_react.useCallback)(
+      (currentTemplateId, currentRecipientEmail) => {
+        const templateChanged = currentTemplateId !== lastTemplateRef.current;
+        const recipientChanged = currentRecipientEmail !== lastRecipientRef.current;
+        if (!templateChanged && !recipientChanged) {
           return;
         }
         lastTemplateRef.current = currentTemplateId;
+        lastRecipientRef.current = currentRecipientEmail;
         const t = templates.find((tmpl) => tmpl.id === currentTemplateId);
         if (!t) {
           return;
         }
+        const selectedPerson = companyData.people.find((p) => p.email === currentRecipientEmail);
+        const firstName = selectedPerson?.name.split(" ")[0] ?? "";
         const { subject, body } = resolveTemplate({
           template: t,
-          firstName: defaultFirstName,
+          firstName,
           companyName: companyData.name
         });
         change("subject", subject);
         change("body", body);
       },
-      [templates, change, companyData.name, defaultFirstName]
+      [templates, change, companyData.name, companyData.people]
     );
     const handleSubmit = async (values) => {
       setSubmitError(null);
       const selectedPerson = companyData.people.find((p) => p.email === values.recipient);
-      const ccList = values.cc ? values.cc.split(",").map((e) => e.trim()).filter((e) => e.length > 0) : [];
+      const ccList = values.cc.filter((e) => e.length > 0);
       const payload = {
         recipientEmail: values.recipient,
         recipientName: selectedPerson?.name ?? "",
@@ -446,15 +456,22 @@
         setSubmitError(message);
       }
     };
-    if (companyData.people.length === 0) {
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_client.Banner, { variant: "warning", children: "No people with email addresses are linked to this company. Add team members in Attio first." });
+    if (externalPeople.length === 0) {
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_client.Banner, { variant: "warning", children: "No external contacts with email addresses are linked to this company. Add contacts in Attio first." });
     }
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Form, { onSubmit: handleSubmit, children: [
       submitError ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_client.Banner, { variant: "error", children: [
         "Failed to send: ",
         submitError
       ] }) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(WithState, { values: true, children: ({ values }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TemplateSyncer, { templateId: values.template, onSync: syncTemplate }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(WithState, { values: true, children: ({ values }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        FormSyncer,
+        {
+          templateId: values.template,
+          recipientEmail: values.recipient,
+          onSync: syncForm
+        }
+      ) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         Combobox,
         {
@@ -482,7 +499,39 @@
           searchPlaceholder: "Search people..."
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TextInput, { name: "cc", label: "CC", placeholder: "Comma-separated email addresses" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(WithState, { values: true, children: ({ values }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        Combobox,
+        {
+          name: "cc",
+          label: "CC",
+          searchPlaceholder: "Search contacts or type an email...",
+          options: {
+            getOption: async (value) => {
+              const person = externalPeople.find((p) => p.email === value);
+              if (person) {
+                return {
+                  label: `${person.name} (${person.email})`,
+                  value: person.email
+                };
+              }
+              return { label: value, value };
+            },
+            search: async (query) => {
+              const lowerQuery = query.toLowerCase();
+              const filtered = externalPeople.filter((p) => p.email !== values.recipient).filter(
+                (p) => p.name.toLowerCase().includes(lowerQuery) || p.email.toLowerCase().includes(lowerQuery)
+              ).map((p) => ({
+                label: `${p.name} (${p.email})`,
+                value: p.email
+              }));
+              if (query.includes("@") && !filtered.some((c) => c.value === query)) {
+                filtered.push({ label: query, value: query });
+              }
+              return filtered;
+            }
+          }
+        }
+      ) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TextInput, { name: "subject", label: "Subject", placeholder: "Email subject line" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TextArea, { name: "body", label: "Body", resizable: true }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SubmitButton, { label: "Send" })
@@ -566,268 +615,6 @@
     objects: ["companies"]
   };
 
-  // src/weather-forecast-action.tsx
-  var import_client4 = __toESM(require_client());
-
-  // src/weather-forecast-dialog.tsx
-  var import_client3 = __toESM(require_client());
-  var import_react2 = __toESM(require_react());
-
-  // src/get-company-location-by-id.graphql
-  var get_company_location_by_id_default = "query GetCompanyLocationById($recordId: String!) {\n  company(id: $recordId) {\n    primary_location {\n      latitude\n      longitude\n      country\n      locality\n    }\n  }\n}\n";
-
-  // proxy-server-modules-plugin:./get-daily-forecast.server
-  async function get_daily_forecast_default(...args) {
-    return runServerFunction("get-daily-forecast.server", args);
-  }
-
-  // src/get-person-location-by-id.graphql
-  var get_person_location_by_id_default = "query GetPersonLocationById($recordId: String!) {\n  person(id: $recordId) {\n    primary_location {\n      latitude\n      longitude\n      country\n      locality\n    }\n    company {\n      name\n      primary_location {\n        latitude\n        longitude\n        country\n        locality\n      }\n    }\n  }\n}\n";
-
-  // src/weather-forecast-dialog.tsx
-  var import_jsx_runtime3 = __toESM(require_jsx_runtime());
-  var WMO_CODES = /* @__PURE__ */ new Map([
-    [0, { description: "Clear sky", emoji: "\u2600\uFE0F" }],
-    [1, { description: "Mainly clear", emoji: "\u{1F324}\uFE0F" }],
-    [2, { description: "Partly cloudy", emoji: "\u26C5" }],
-    [3, { description: "Overcast", emoji: "\u2601\uFE0F" }],
-    [45, { description: "Fog", emoji: "\u{1F32B}\uFE0F" }],
-    [48, { description: "Depositing rime fog", emoji: "\u{1F32B}\uFE0F" }],
-    [51, { description: "Light drizzle", emoji: "\u{1F326}\uFE0F" }],
-    [53, { description: "Moderate drizzle", emoji: "\u{1F326}\uFE0F" }],
-    [55, { description: "Dense drizzle", emoji: "\u{1F326}\uFE0F" }],
-    [56, { description: "Light freezing drizzle", emoji: "\u{1F9CA}" }],
-    [57, { description: "Dense freezing drizzle", emoji: "\u{1F9CA}" }],
-    [61, { description: "Slight rain", emoji: "\u{1F327}\uFE0F" }],
-    [63, { description: "Moderate rain", emoji: "\u{1F327}\uFE0F" }],
-    [65, { description: "Heavy rain", emoji: "\u{1F327}\uFE0F" }],
-    [66, { description: "Light freezing rain", emoji: "\u{1F9CA}" }],
-    [67, { description: "Heavy freezing rain", emoji: "\u{1F9CA}" }],
-    [71, { description: "Slight snow fall", emoji: "\u2744\uFE0F" }],
-    [73, { description: "Moderate snow fall", emoji: "\u2744\uFE0F" }],
-    [75, { description: "Heavy snow fall", emoji: "\u2744\uFE0F" }],
-    [77, { description: "Snow grains", emoji: "\u{1F328}\uFE0F" }],
-    [80, { description: "Slight rain showers", emoji: "\u{1F326}\uFE0F" }],
-    [81, { description: "Moderate rain showers", emoji: "\u{1F327}\uFE0F" }],
-    [82, { description: "Violent rain showers", emoji: "\u26C8\uFE0F" }],
-    [85, { description: "Slight snow showers", emoji: "\u{1F328}\uFE0F" }],
-    [86, { description: "Heavy snow showers", emoji: "\u2744\uFE0F" }],
-    [95, { description: "Thunderstorm", emoji: "\u{1F329}\uFE0F" }],
-    [96, { description: "Thunderstorm with slight hail", emoji: "\u26C8\uFE0F" }],
-    [99, { description: "Thunderstorm with heavy hail", emoji: "\u26C8\uFE0F" }]
-  ]);
-  function extractLocationData(primaryLocation, fallbackLocation) {
-    const hasValidPrimary = primaryLocation?.latitude != null && primaryLocation?.longitude != null;
-    const hasValidFallback = fallbackLocation?.latitude != null && fallbackLocation?.longitude != null;
-    const location = hasValidPrimary ? primaryLocation : hasValidFallback ? fallbackLocation : null;
-    if (!location) {
-      return null;
-    }
-    return {
-      latitude: Number(location.latitude),
-      longitude: Number(location.longitude),
-      locality: location.locality != null ? location.locality : null,
-      country: location.country != null ? location.country : null
-    };
-  }
-  function formatLocationString(locality, country) {
-    if (locality && country) {
-      return `${locality}, ${country}`;
-    }
-    if (locality) {
-      return locality;
-    }
-    if (country) {
-      return country;
-    }
-    return null;
-  }
-  function getTemperatureBadgeColor(temperature, unit) {
-    const tempInCelsius = unit === "fahrenheit" ? (temperature - 32) * 5 / 9 : temperature;
-    if (tempInCelsius <= -20) return "cyan";
-    if (tempInCelsius <= -10) return "blue";
-    if (tempInCelsius <= 0) return "grey";
-    if (tempInCelsius <= 10) return "lime";
-    if (tempInCelsius <= 20) return "green";
-    if (tempInCelsius <= 25) return "yellow";
-    if (tempInCelsius <= 30) return "amber";
-    if (tempInCelsius <= 35) return "orange";
-    return "red";
-  }
-  function formatTemperature(temperature, unit) {
-    return `${temperature} \xB0${unit[0].toUpperCase()}`;
-  }
-  function TemperatureBadge({ temperature, unit }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_client3.Badge, { color: getTemperatureBadgeColor(temperature, unit), children: formatTemperature(temperature, unit) });
-  }
-  function toRecordLocation(locationData) {
-    const formattedLocation = formatLocationString(locationData.locality, locationData.country);
-    const location = formattedLocation ?? `${locationData.latitude}, ${locationData.longitude}`;
-    return {
-      ...locationData,
-      location
-    };
-  }
-  function PersonForecast({ recordId }) {
-    const { person } = (0, import_client3.useQuery)(get_person_location_by_id_default, { recordId });
-    const locationData = extractLocationData(
-      person?.primary_location,
-      person?.company?.primary_location
-    );
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ForecastResult, { locationData });
-  }
-  function CompanyForecast({ recordId }) {
-    const { company } = (0, import_client3.useQuery)(get_company_location_by_id_default, { recordId });
-    const locationData = extractLocationData(company?.primary_location);
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ForecastResult, { locationData });
-  }
-  var DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  var MONTHS = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec"
-  ];
-  function formatDate(timestamp) {
-    const date = new Date(timestamp * 1e3);
-    const day = DAYS[date.getUTCDay()];
-    const month = MONTHS[date.getUTCMonth()];
-    return `${day}, ${date.getUTCDate()} ${month}`;
-  }
-  function ForecastTableHeader() {
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_client3.Table.Header, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_client3.Table.HeaderCell, { children: "Date" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_client3.Table.HeaderCell, { children: "Weather" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_client3.Table.HeaderCell, { children: "Temp. (Max/Min)" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_client3.Table.HeaderCell, { children: "Precipitation" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_client3.Table.HeaderCell, { children: "Wind" })
-    ] });
-  }
-  function ForecastFooter() {
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_client3.Divider, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_client3.Typography.Body, { children: [
-        "Weather data provided by ",
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_client3.Link, { href: "https://open-meteo.com", children: "open-meteo.com" })
-      ] })
-    ] });
-  }
-  function ForecastContent({
-    latitude,
-    longitude,
-    location
-  }) {
-    const temperatureUnit = "fahrenheit";
-    const {
-      values: { forecast }
-    } = (0, import_client3.useAsyncCache)({
-      forecast: [get_daily_forecast_default, latitude, longitude, temperatureUnit]
-    });
-    const locationTitle = `Location: ${location}`;
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_client3.Section, { title: locationTitle, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_client3.Table, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ForecastTableHeader, {}),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_client3.Table.Body, { children: forecast.daily.time.map((timestamp, index) => {
-          const weatherCode = forecast.daily.weather_code[index];
-          const tempMax = Math.round(forecast.daily.temperature_2m_max[index]);
-          const tempMin = Math.round(forecast.daily.temperature_2m_min[index]);
-          const precipitation = forecast.daily.precipitation_sum[index];
-          const precipProb = forecast.daily.precipitation_probability_max[index];
-          const windSpeed = Math.round(forecast.daily.wind_speed_10m_max[index]);
-          const weatherInfo = WMO_CODES.get(weatherCode);
-          const weatherEmoji = weatherInfo?.emoji || "\u{1F308}";
-          const weatherDesc = weatherInfo?.description || "Unknown";
-          return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_client3.Table.Row, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_client3.Table.Cell, { children: formatDate(timestamp) }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_client3.Table.Cell, { children: [
-              weatherEmoji,
-              " ",
-              weatherDesc
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_client3.Table.Cell, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-                TemperatureBadge,
-                {
-                  temperature: tempMax,
-                  unit: temperatureUnit
-                }
-              ),
-              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-                TemperatureBadge,
-                {
-                  temperature: tempMin,
-                  unit: temperatureUnit
-                }
-              )
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_client3.Table.Cell, { children: [
-              precipitation.toFixed(1),
-              " ",
-              forecast.daily_units.precipitation_sum,
-              " (",
-              precipProb,
-              "%)"
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_client3.Table.Cell, { children: [
-              windSpeed,
-              " ",
-              forecast.daily_units.wind_speed_10m_max
-            ] })
-          ] }, timestamp);
-        }) })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ForecastFooter, {})
-    ] });
-  }
-  function ForecastResult({ locationData }) {
-    if (!locationData) {
-      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_client3.Section, { title: "Weather Forecast", children: "No location data available for this record." });
-    }
-    const recordLocation = toRecordLocation(locationData);
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_react2.Suspense, { fallback: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_client3.LoadingState, {}), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-      ForecastContent,
-      {
-        latitude: recordLocation.latitude,
-        longitude: recordLocation.longitude,
-        location: recordLocation.location
-      }
-    ) });
-  }
-  function WeatherForecastDialog({
-    object,
-    recordId
-  }) {
-    if (object === "people") {
-      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(PersonForecast, { recordId });
-    }
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(CompanyForecast, { recordId });
-  }
-
-  // src/weather-forecast-action.tsx
-  var import_jsx_runtime4 = __toESM(require_jsx_runtime());
-  var showWeatherForecast = {
-    id: "show-weather-forecast",
-    label: "Show weather forecast",
-    icon: "Sun",
-    onTrigger: async ({ recordId, object }) => {
-      await (0, import_client4.showDialog)({
-        title: "7-Day Weather Forecast",
-        Dialog: () => {
-          return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(WeatherForecastDialog, { object, recordId });
-        }
-      });
-    },
-    objects: ["people", "companies"]
-  };
-
   // src/app.settings.ts
   var settingsSchema = {
     workspace: {}
@@ -838,7 +625,7 @@
   var app = {
     record: {
       /** @see https://docs.attio.com/sdk/entry-points/record-action  */
-      actions: [showWeatherForecast, startEmailSequence],
+      actions: [startEmailSequence],
       /** @see https://docs.attio.com/sdk/entry-points/bulk-record-action */
       bulkActions: [],
       /** @see https://docs.attio.com/sdk/entry-points/record-widget */
@@ -862,7 +649,7 @@
     settings: {}
   };
 
-  // ../../../../private/var/folders/cr/34cvn9s16cx908kpzrghwbxc0000gn/T/tmp-71037-r38tHriW0A7B-.js
+  // ../../../../private/var/folders/cr/34cvn9s16cx908kpzrghwbxc0000gn/T/tmp-2154-3dIJQtuRqN4V-.js
   registerSettingsSchema(app_settings_default);
   var recordActions = app?.record?.actions;
   var bulkRecordActions = app?.record?.bulkActions;

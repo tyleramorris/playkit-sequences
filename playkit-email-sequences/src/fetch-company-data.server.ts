@@ -43,12 +43,17 @@ const CompanyNameValueSchema = z.object({
     value: z.string().nullable().optional(),
 })
 
+const DomainValueSchema = z.object({
+    domain: z.string(),
+})
+
 const CompanyRecordSchema = z.object({
     id: z.object({
         record_id: z.string(),
     }),
     values: z.object({
         name: z.array(CompanyNameValueSchema).optional(),
+        domains: z.array(DomainValueSchema).optional(),
         team: z.array(RecordValueSchema).optional(),
     }),
 })
@@ -92,7 +97,12 @@ export default async function fetchCompanyData(companyRecordId: string): Promise
     }
 
     const companyData = CompanyRecordResponseSchema.parse(companyJson)
-    const companyName = companyData.data.values.name?.[0]?.value ?? "Unknown Company"
+    const rawName = companyData.data.values.name?.[0]?.value ?? "Unknown Company"
+    const domains = companyData.data.values.domains?.map((d) => d.domain) ?? []
+    const companyName =
+        domains.length > 0 && domains.some((d) => rawName === d)
+            ? rawName.split(".")[0].charAt(0).toUpperCase() + rawName.split(".")[0].slice(1)
+            : rawName
     const teamMemberIds =
         companyData.data.values.team
             ?.filter((ref) => ref.target_object === "people")

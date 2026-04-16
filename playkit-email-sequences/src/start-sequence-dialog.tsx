@@ -29,16 +29,18 @@ function resolveTemplate({
     return {subject, body}
 }
 
-function TemplateSyncer({
+function FormSyncer({
     templateId,
+    recipientEmail,
     onSync,
 }: {
     templateId: string
-    onSync: (id: string) => void
+    recipientEmail: string
+    onSync: (templateId: string, recipientEmail: string) => void
 }): React.ReactElement {
     useEffect(() => {
-        onSync(templateId)
-    }, [templateId, onSync])
+        onSync(templateId, recipientEmail)
+    }, [templateId, recipientEmail, onSync])
     return React.createElement(React.Fragment)
 }
 
@@ -57,7 +59,12 @@ function SequenceForm({
     const lastTemplateRef = useRef<string>(templates[0].id)
     const defaultTemplate = templates[0]
 
-    const recipientOptions = companyData.people.map((person: LinkedPerson) => ({
+    const externalPeople = companyData.people.filter(
+        (person: LinkedPerson) => !person.email.endsWith("@playkit.xyz")
+    )
+    const lastRecipientRef = useRef<string>(externalPeople[0]?.email ?? "")
+
+    const recipientOptions = externalPeople.map((person: LinkedPerson) => ({
         label: `${person.name} (${person.email})`,
         value: person.email,
     }))
@@ -72,7 +79,7 @@ function SequenceForm({
         {label: "Delayed (1, 4, 4 business days)", value: "delayed"},
     ]
 
-    const defaultRecipient = companyData.people[0]
+    const defaultRecipient = externalPeople[0]
     const defaultFirstName = defaultRecipient?.name.split(" ")[0] ?? ""
 
     const {subject: defaultSubject, body: defaultBody} = resolveTemplate({
@@ -88,7 +95,7 @@ function SequenceForm({
             template: Forms.string(),
             cadence: Forms.string(),
             recipient: Forms.string(),
-            cc: Forms.string().optional(),
+            cc: Forms.array(Forms.string()),
             subject: Forms.string(),
             body: Forms.string().multiline(),
         },
@@ -96,49 +103,54 @@ function SequenceForm({
             template: defaultTemplate.id,
             cadence: "standard" as string,
             recipient: defaultRecipient?.email ?? "",
-            cc: "",
+            cc: [],
             subject: defaultSubject,
             body: defaultBody,
         }
     )
 
-    const syncTemplate = useCallback(
-        (currentTemplateId: string) => {
-            if (currentTemplateId === lastTemplateRef.current) {
+    const syncForm = useCallback(
+        (currentTemplateId: string, currentRecipientEmail: string) => {
+            const templateChanged = currentTemplateId !== lastTemplateRef.current
+            const recipientChanged = currentRecipientEmail !== lastRecipientRef.current
+
+            if (!templateChanged && !recipientChanged) {
                 return
             }
+
             lastTemplateRef.current = currentTemplateId
+            lastRecipientRef.current = currentRecipientEmail
+
             const t = templates.find((tmpl) => tmpl.id === currentTemplateId)
             if (!t) {
                 return
             }
+
+            const selectedPerson = companyData.people.find((p) => p.email === currentRecipientEmail)
+            const firstName = selectedPerson?.name.split(" ")[0] ?? ""
+
             const {subject, body} = resolveTemplate({
                 template: t,
-                firstName: defaultFirstName,
+                firstName,
                 companyName: companyData.name,
             })
             change("subject", subject)
             change("body", body)
         },
-        [templates, change, companyData.name, defaultFirstName]
+        [templates, change, companyData.name, companyData.people]
     )
 
     const handleSubmit = async (values: {
         template: string
         cadence: string
         recipient: string
-        cc?: string
+        cc: string[]
         subject: string
         body: string
     }) => {
         setSubmitError(null)
         const selectedPerson = companyData.people.find((p) => p.email === values.recipient)
-        const ccList = values.cc
-            ? values.cc
-                  .split(",")
-                  .map((e: string) => e.trim())
-                  .filter((e: string) => e.length > 0)
-            : []
+        const ccList = values.cc.filter((e: string) => e.length > 0)
 
         const payload: StartSequencePayload = {
             recipientEmail: values.recipient,
@@ -162,11 +174,11 @@ function SequenceForm({
         }
     }
 
-    if (companyData.people.length === 0) {
+    if (externalPeople.length === 0) {
         return (
             <Banner variant="warning">
-                No people with email addresses are linked to this company. Add team members in Attio
-                first.
+                No external contacts with email addresses are linked to this company. Add contacts
+                in Attio first.
             </Banner>
         )
     }
@@ -176,7 +188,11 @@ function SequenceForm({
             {submitError ? <Banner variant="error">Failed to send: {submitError}</Banner> : null}
             <WithState values>
                 {({values}) => (
-                    <TemplateSyncer templateId={values.template} onSync={syncTemplate} />
+                    <FormSyncer
+                        templateId={values.template}
+                        recipientEmail={values.recipient}
+                        onSync={syncForm}
+                    />
                 )}
             </WithState>
             <Combobox
@@ -197,7 +213,50 @@ function SequenceForm({
                 options={recipientOptions}
                 searchPlaceholder="Search people..."
             />
-            <TextInput name="cc" label="CC" placeholder="Comma-separated email addresses" />
+            <WithState values>
+                {({values}) => (
+                    <Combobox
+                        name="cc"
+                        label="CC"
+                        searchPlaceholder="Search contacts or type an email..."
+                        options={{
+                            getOption: async (value: string) => {
+                                const person = externalPeople.find((p) => p.email === value)
+                                if (person) {
+                                    return {
+                                        label: `${person.name} (${person.email})`,
+                                        value: person.email,
+                                    }
+                                }
+                                return {label: value, value}
+                            },
+                            search: async (query: string) => {
+                                const lowerQuery = query.toLowerCase()
+                                const filtered = externalPeople
+                                    .filter((p) => p.email !== values.recipient)
+                                    .filter(
+                                        (p) =>
+                                            p.name.toLowerCase().includes(lowerQuery) ||
+                                            p.email.toLowerCase().includes(lowerQuery)
+                                    )
+                                    .map((p) => ({
+                                        label: `${p.name} (${p.email})`,
+                                        value: p.email,
+                                    }))
+
+                                if (
+                                    query.includes("@") &&
+                                    !filtered.some((c) => c.value === query)
+                                ) {
+                                    filtered.push({label: query, value: query})
+                                }
+
+                                return filtered
+                            },
+                        }}
+                    />
+                )}
+            </WithState>
             <TextInput name="subject" label="Subject" placeholder="Email subject line" />
             <TextArea name="body" label="Body" resizable />
             <SubmitButton label="Send" />
