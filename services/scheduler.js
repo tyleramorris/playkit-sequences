@@ -38,7 +38,7 @@ async function startSequence({ recipients, cc, subject, body, dealId, firstNames
 
   const sequenceId = String(++sequenceCounter);
 
-  const sent = await sendEmail(auth, { to: recipients, cc, subject, body });
+  const sent = await sendEmail(auth, { to: recipients, cc, subject, body, includeAttachments: true });
 
   // Look up deal name for the dashboard (best effort).
   let dealName = dealId;
