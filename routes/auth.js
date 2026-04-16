@@ -2,14 +2,14 @@ const express = require('express');
 const { google } = require('googleapis');
 const router = express.Router();
 
-// In-memory token storage (replace with DB later)
+// Phase-1 in-memory token storage; Phase 2 moves to a persistent database.
 let storedTokens = null;
 
 function createOAuth2Client() {
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
+    process.env.REDIRECT_URI
   );
 }
 
@@ -20,8 +20,8 @@ function getAuthenticatedClient() {
   return client;
 }
 
-// Step 1: Redirect to Google consent screen
-router.get('/google', (req, res) => {
+// GET /auth — initiates Gmail OAuth flow
+router.get('/', (req, res) => {
   const oauth2Client = createOAuth2Client();
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
@@ -34,8 +34,8 @@ router.get('/google', (req, res) => {
   res.redirect(authUrl);
 });
 
-// Step 2: Handle OAuth callback
-router.get('/google/callback', async (req, res) => {
+// GET /auth/callback — handles OAuth callback
+router.get('/callback', async (req, res) => {
   const { code } = req.query;
   if (!code) return res.status(400).json({ error: 'Missing authorization code' });
 
@@ -57,7 +57,6 @@ router.get('/google/callback', async (req, res) => {
   }
 });
 
-// Check auth status
 router.get('/status', (req, res) => {
   res.json({ authenticated: !!storedTokens });
 });

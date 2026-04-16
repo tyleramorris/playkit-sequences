@@ -1,47 +1,60 @@
 const express = require('express');
-const { startSequence, cancelSequence, getSequence, getAllSequences } = require('../services/scheduler');
+const {
+  startSequence,
+  cancelSequenceByDeal,
+} = require('../services/scheduler');
+
 const router = express.Router();
 
-// Start a new email sequence
+/**
+ * POST /sequence/start
+ * Starts a new sequence. Sends Email 1 immediately and schedules 2–4.
+ * Body: { recipients: string[], cc?: string[], subject: string, body: string, dealId: string }
+ */
 router.post('/start', async (req, res) => {
-  const { to, subject, emails } = req.body;
+  const { recipients, firstNames, cc, subject, body, dealId } = req.body || {};
 
-  if (!to || !subject || !emails) {
-    return res.status(400).json({ error: 'Missing required fields: to, subject, emails' });
+  if (!Array.isArray(recipients) || recipients.length === 0) {
+    return res.status(400).json({ error: 'recipients (array) is required' });
+  }
+  if (!subject || !body || !dealId) {
+    return res.status(400).json({ error: 'subject, body, and dealId are required' });
+  }
+  if (firstNames && (!Array.isArray(firstNames) || firstNames.length !== recipients.length)) {
+    return res.status(400).json({
+      error: 'firstNames must be an array the same length as recipients',
+    });
   }
 
   try {
-    const result = await startSequence({ to, subject, emails });
+    const result = await startSequence({
+      recipients,
+      firstNames: firstNames || [],
+      cc: Array.isArray(cc) ? cc : [],
+      subject,
+      body,
+      dealId,
+    });
     res.json({ message: 'Sequence started', ...result });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Cancel a sequence
-router.post('/:id/cancel', (req, res) => {
-  const result = cancelSequence(req.params.id);
-  if (!result.found) return res.status(404).json({ error: 'Sequence not found' });
-  res.json({ message: 'Sequence cancelled', status: result.status });
-});
+/**
+ * POST /sequence/cancel
+ * Cancels the active sequence for a given deal.
+ * Body: { dealId: string }
+ */
+router.post('/cancel', (req, res) => {
+  const { dealId } = req.body || {};
+  if (!dealId) return res.status(400).json({ error: 'dealId is required' });
 
-// Get a specific sequence
-router.get('/:id', (req, res) => {
-  const seq = getSequence(req.params.id);
-  if (!seq) return res.status(404).json({ error: 'Sequence not found' });
-  res.json({
-    to: seq.to,
-    subject: seq.subject,
-    status: seq.status,
-    sentCount: seq.sentCount,
-    totalEmails: seq.emails.length,
-    createdAt: seq.createdAt,
-  });
-});
-
-// List all sequences
-router.get('/', (req, res) => {
-  res.json(getAllSequences());
+  const { cancelled } = cancelSequenceByDeal(dealId, 'cancelled');
+  if (cancelled === 0) {
+    return res.status(404).json({ error: 'No active sequence for that deal' });
+  }
+  res.json({ message: 'Sequence cancelled', cancelled });
 });
 
 module.exports = router;

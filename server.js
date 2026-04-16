@@ -1,7 +1,9 @@
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
 const authRoutes = require('./routes/auth');
 const sequenceRoutes = require('./routes/sequence');
+const sequencesRoutes = require('./routes/sequences');
 const { startReplyPolling } = require('./services/replyDetector');
 
 const app = express();
@@ -9,9 +11,15 @@ app.use(express.json());
 
 app.use('/auth', authRoutes);
 app.use('/sequence', sequenceRoutes);
+app.use('/sequences', sequencesRoutes);
 
+// Logging dashboard (served at the backend root per PRD).
 app.get('/', (req, res) => {
-  res.json({ status: 'running', message: 'PlayKit Sequences API' });
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
 });
 
 const PORT = process.env.PORT || 3000;

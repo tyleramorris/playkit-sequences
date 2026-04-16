@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Playkit Sequences</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { color-scheme: light dark; }
+    body { font: 14px -apple-system, system-ui, sans-serif; margin: 24px; }
+    h1 { font-size: 18px; margin: 0 0 16px; }
+    .meta { color: #888; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
+    th { font-weight: 600; color: #555; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .status { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+    .status.active { background: #e6f4ea; color: #1e7e34; }
+    .status.completed { background: #e7f0ff; color: #0b5ed7; }
+    .status.cancelled { background: #fdecec; color: #b02a37; }
+    .empty { padding: 32px; text-align: center; color: #888; }
+    .recipients { color: #555; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>Playkit Sequences</h1>
+  <div class="meta">Auto-refreshes every 30 seconds. <span id="count"></span></div>
+  <div id="root">Loading…</div>
+
+  <script>
+    const EXIT_LABELS = {
+      reply: 'Reply received',
+      meeting: 'Meeting booked',
+      completed: 'Completed',
+      cancelled: 'Manually cancelled',
+    };
+
+    function fmt(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleString();
+    }
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"]/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])
+      );
+    }
+
+    async function load() {
+      try {
+        const res = await fetch('/sequences');
+        const data = await res.json();
+        document.getElementById('count').textContent = `${data.length} sequence${data.length === 1 ? '' : 's'}`;
+
+        if (data.length === 0) {
+          document.getElementById('root').innerHTML = '<div class="empty">No sequences yet.</div>';
+          return;
+        }
+
+        const rows = data
+          .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+          .map((s) => {
+            const exit = s.exitReason ? EXIT_LABELS[s.exitReason] || s.exitReason : '—';
+            const recipients = [...(s.recipients || [])];
+            if (s.cc && s.cc.length) recipients.push(`cc: ${s.cc.join(', ')}`);
+            return `
+              <tr>
+                <td>${esc(s.dealName || s.dealId || '')}</td>
+                <td class="recipients">${esc(recipients.join(', '))}</td>
+                <td><span class="status ${esc(s.status)}">${esc(s.status)}</span></td>
+                <td>${s.sentCount}/${s.totalEmails}</td>
+                <td>${esc(fmt(s.lastActivityAt))}</td>
+                <td>${esc(exit)}</td>
+              </tr>
+            `;
+          })
+          .join('');
+
+        document.getElementById('root').innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Deal</th>
+                <th>Recipients</th>
+                <th>Status</th>
+                <th>Emails Sent</th>
+                <th>Last Activity</th>
+                <th>Exit Reason</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      } catch (err) {
+        document.getElementById('root').innerHTML =
+          `<div class="empty">Failed to load: ${esc(err.message)}</div>`;
+      }
+    }
+
+    load();
+    setInterval(load, 30000);
+  </script>
+</body>
+</html>
