@@ -18,6 +18,9 @@
     .status.cancelled { background: #fdecec; color: #b02a37; }
     .empty { padding: 32px; text-align: center; color: #888; }
     .recipients { color: #555; font-size: 13px; }
+    .cancel-btn { font: inherit; padding: 4px 10px; border: 1px solid #d0d0d0; background: #fff; border-radius: 6px; cursor: pointer; }
+    .cancel-btn:hover:not(:disabled) { background: #fdecec; border-color: #b02a37; color: #b02a37; }
+    .cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -45,6 +48,40 @@
       );
     }
 
+    async function onCancelClick(event) {
+      const btn = event.currentTarget;
+      const dealId = btn.dataset.dealId;
+      if (!dealId) return;
+      if (!confirm('Cancel this sequence?')) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Cancelling…';
+      try {
+        const res = await fetch('/sequence/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dealId }),
+        });
+        if (!res.ok) {
+          const { error } = await res.json().catch(() => ({}));
+          throw new Error(error || `HTTP ${res.status}`);
+        }
+        const row = btn.closest('tr');
+        const statusCell = row.querySelector('.status');
+        if (statusCell) {
+          statusCell.className = 'status cancelled';
+          statusCell.textContent = 'cancelled';
+        }
+        const exitCell = row.children[5];
+        if (exitCell) exitCell.textContent = EXIT_LABELS.cancelled;
+        btn.remove();
+      } catch (err) {
+        alert(`Failed to cancel: ${err.message}`);
+        btn.disabled = false;
+        btn.textContent = 'Cancel';
+      }
+    }
+
     async function load() {
       try {
         const res = await fetch('/sequences');
@@ -62,14 +99,18 @@
             const exit = s.exitReason ? EXIT_LABELS[s.exitReason] || s.exitReason : '—';
             const recipients = [...(s.recipients || [])];
             if (s.cc && s.cc.length) recipients.push(`cc: ${s.cc.join(', ')}`);
+            const action = s.status === 'active' && s.dealId
+              ? `<button class="cancel-btn" data-deal-id="${esc(s.dealId)}">Cancel</button>`
+              : '';
             return `
-              <tr>
+              <tr data-deal-id="${esc(s.dealId || '')}">
                 <td>${esc(s.dealName || s.dealId || '')}</td>
                 <td class="recipients">${esc(recipients.join(', '))}</td>
                 <td><span class="status ${esc(s.status)}">${esc(s.status)}</span></td>
                 <td>${s.sentCount}/${s.totalEmails}</td>
                 <td>${esc(fmt(s.lastActivityAt))}</td>
                 <td>${esc(exit)}</td>
+                <td>${action}</td>
               </tr>
             `;
           })
@@ -85,11 +126,16 @@
                 <th>Emails Sent</th>
                 <th>Last Activity</th>
                 <th>Exit Reason</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
           </table>
         `;
+
+        document.querySelectorAll('.cancel-btn').forEach((btn) => {
+          btn.addEventListener('click', onCancelClick);
+        });
       } catch (err) {
         document.getElementById('root').innerHTML =
           `<div class="empty">Failed to load: ${esc(err.message)}</div>`;
