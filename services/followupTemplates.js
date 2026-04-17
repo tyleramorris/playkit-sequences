@@ -45,9 +45,9 @@ Julia`,
 I'll stop following up. I know timing doesn't always line up and building this in-house is a totally valid path.
 
 A few resources to get you started:
-- Playkit's Substack, lots of free resources on running UGC
-- Trackr, use code FRIENDS75 for one month free of the operating system we use to run our campaigns
-- Trackr Handbook, step by step instructions on how to run campaigns like Playkit
+- <a href="https://playkit.substack.com/">Playkit's Substack</a>, lots of free resources on running UGC
+- <a href="https://ugctrackr.com">Trackr</a>, use code FRIENDS75 for one month free of the operating system we use to run our campaigns
+- <a href="https://www.notion.so/2ead142e96d080a594e6d11750b5d811">Trackr Handbook</a>, step by step instructions on how to run campaigns like Playkit
 
 If you ever want to hand it off or hit a wall, just reply to this thread.
 

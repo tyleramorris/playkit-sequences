@@ -64,11 +64,15 @@ function buildEmailHeaders({ to, cc, from, subject, messageId, references }) {
  * is provided, sets In-Reply-To / References headers so Gmail keeps the
  * message in the same thread.
  */
+function toHtmlBody(body) {
+  return body.replace(/\n/g, '<br>\r\n');
+}
+
 function buildRawEmail({ to, cc, from, subject, body, messageId, references }) {
   const headers = buildEmailHeaders({ to, cc, from, subject, messageId, references });
-  headers.push('Content-Type: text/plain; charset=UTF-8');
+  headers.push('Content-Type: text/html; charset=UTF-8');
 
-  const email = headers.join('\r\n') + '\r\n\r\n' + body;
+  const email = headers.join('\r\n') + '\r\n\r\n' + toHtmlBody(body);
   return Buffer.from(email).toString('base64url');
 }
 
@@ -83,11 +87,11 @@ function buildRawEmailWithAttachments({ to, cc, from, subject, body, messageId, 
 
   const parts = [];
 
-  // Text body part
+  // HTML body part
   parts.push(
     `--${boundary}\r\n` +
-    'Content-Type: text/plain; charset=UTF-8\r\n\r\n' +
-    body
+    'Content-Type: text/html; charset=UTF-8\r\n\r\n' +
+    toHtmlBody(body)
   );
 
   // Attachment parts
