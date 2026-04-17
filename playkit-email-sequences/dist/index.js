@@ -389,12 +389,13 @@
       companyName: companyData.name
     });
     lastTemplateRef.current = defaultTemplate.id;
-    const { Form, Combobox, TextInput, TextArea, SubmitButton, WithState, change } = (0, import_client.useForm)(
+    const { Form, Combobox, TextInput, TextArea, PlainDateInput, SubmitButton, WithState, change } = (0, import_client.useForm)(
       {
         template: import_client.Forms.string(),
         cadence: import_client.Forms.string(),
         recipient: import_client.Forms.string(),
         cc: import_client.Forms.array(import_client.Forms.string()),
+        startDate: import_client.Forms.plainDate().optional(),
         subject: import_client.Forms.string(),
         body: import_client.Forms.string().multiline()
       },
@@ -405,6 +406,13 @@
         cc: [],
         subject: defaultSubject,
         body: defaultBody
+      },
+      (values) => {
+        const errors = {};
+        if (!values.startDate) {
+          errors.startDate = "Start date is required";
+        }
+        return errors;
       }
     );
     const syncForm = (0, import_react.useCallback)(
@@ -434,6 +442,10 @@
     );
     const handleSubmit = async (values) => {
       setSubmitError(null);
+      if (!values.startDate) {
+        setSubmitError("Start date is required");
+        return;
+      }
       const selectedPerson = companyData.people.find((p) => p.email === values.recipient);
       const ccList = values.cc.filter((e) => e.length > 0);
       const payload = {
@@ -444,7 +456,8 @@
         body: values.body,
         companyName: companyData.name,
         companyRecordId,
-        cadence: values.cadence
+        cadence: values.cadence,
+        startDate: values.startDate
       };
       try {
         const result = await start_sequence_default(payload);
@@ -499,11 +512,12 @@
           searchPlaceholder: "Search people..."
         }
       ),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PlainDateInput, { name: "startDate", label: "Email 1 start date" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(WithState, { values: true, children: ({ values }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         Combobox,
         {
           name: "cc",
-          label: "CC",
+          label: "CC (optional)",
           searchPlaceholder: "Search contacts or type an email...",
           options: {
             getOption: async (value) => {
@@ -649,7 +663,7 @@
     settings: {}
   };
 
-  // ../../../../private/var/folders/cr/34cvn9s16cx908kpzrghwbxc0000gn/T/tmp-2154-3dIJQtuRqN4V-.js
+  // ../../../../private/var/folders/cr/34cvn9s16cx908kpzrghwbxc0000gn/T/tmp-23015-e4qkB6OOy18R-.js
   registerSettingsSchema(app_settings_default);
   var recordActions = app?.record?.actions;
   var bulkRecordActions = app?.record?.bulkActions;

@@ -90,24 +90,33 @@ function SequenceForm({
 
     lastTemplateRef.current = defaultTemplate.id
 
-    const {Form, Combobox, TextInput, TextArea, SubmitButton, WithState, change} = useForm(
-        {
-            template: Forms.string(),
-            cadence: Forms.string(),
-            recipient: Forms.string(),
-            cc: Forms.array(Forms.string()),
-            subject: Forms.string(),
-            body: Forms.string().multiline(),
-        },
-        {
-            template: defaultTemplate.id,
-            cadence: "standard" as string,
-            recipient: defaultRecipient?.email ?? "",
-            cc: [],
-            subject: defaultSubject,
-            body: defaultBody,
-        }
-    )
+    const {Form, Combobox, TextInput, TextArea, PlainDateInput, SubmitButton, WithState, change} =
+        useForm(
+            {
+                template: Forms.string(),
+                cadence: Forms.string(),
+                recipient: Forms.string(),
+                cc: Forms.array(Forms.string()),
+                startDate: Forms.plainDate().optional(),
+                subject: Forms.string(),
+                body: Forms.string().multiline(),
+            },
+            {
+                template: defaultTemplate.id,
+                cadence: "standard" as string,
+                recipient: defaultRecipient?.email ?? "",
+                cc: [],
+                subject: defaultSubject,
+                body: defaultBody,
+            },
+            (values) => {
+                const errors: {startDate?: string} = {}
+                if (!values.startDate) {
+                    errors.startDate = "Start date is required"
+                }
+                return errors
+            }
+        )
 
     const syncForm = useCallback(
         (currentTemplateId: string, currentRecipientEmail: string) => {
@@ -145,10 +154,15 @@ function SequenceForm({
         cadence: string
         recipient: string
         cc: string[]
+        startDate: string | undefined
         subject: string
         body: string
     }) => {
         setSubmitError(null)
+        if (!values.startDate) {
+            setSubmitError("Start date is required")
+            return
+        }
         const selectedPerson = companyData.people.find((p) => p.email === values.recipient)
         const ccList = values.cc.filter((e: string) => e.length > 0)
 
@@ -161,6 +175,7 @@ function SequenceForm({
             companyName: companyData.name,
             companyRecordId,
             cadence: values.cadence as Cadence,
+            startDate: values.startDate,
         }
 
         try {
@@ -213,11 +228,12 @@ function SequenceForm({
                 options={recipientOptions}
                 searchPlaceholder="Search people..."
             />
+            <PlainDateInput name="startDate" label="Email 1 start date" />
             <WithState values>
                 {({values}) => (
                     <Combobox
                         name="cc"
-                        label="CC"
+                        label="CC (optional)"
                         searchPlaceholder="Search contacts or type an email..."
                         options={{
                             getOption: async (value: string) => {

@@ -27,4 +27,5 @@ export interface StartSequencePayload {
     companyName: string
     companyRecordId: string
     cadence: Cadence
+    startDate: string
 }

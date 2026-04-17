@@ -4155,7 +4155,8 @@ async function startSequence(payload) {
     body: payload.body,
     companyName: payload.companyName,
     dealId: payload.companyRecordId,
-    cadence: payload.cadence
+    cadence: payload.cadence,
+    startDate: payload.startDate
   };
   const serializedBody = JSON.stringify(requestBody, null, 2);
   console.log(`[Sequence API] Sending POST to ${url}`);
@@ -4536,7 +4537,7 @@ var settingsSchema = {
 };
 var app_settings_default = settingsSchema;
 
-// ../../../../private/var/folders/cr/34cvn9s16cx908kpzrghwbxc0000gn/T/tmp-2154-ACsPA13pN9Ru-.js
+// ../../../../private/var/folders/cr/34cvn9s16cx908kpzrghwbxc0000gn/T/tmp-23015-VEDMUE718Gz2-.js
 registerSettingsSchema(app_settings_default);
 var modules = /* @__PURE__ */ new Map();
 var webhookModules = /* @__PURE__ */ new Map();

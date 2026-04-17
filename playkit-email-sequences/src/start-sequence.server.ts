@@ -20,6 +20,7 @@ export default async function startSequence(payload: StartSequencePayload): Prom
         companyName: payload.companyName,
         dealId: payload.companyRecordId,
         cadence: payload.cadence,
+        startDate: payload.startDate,
     }
 
     const serializedBody = JSON.stringify(requestBody, null, 2)

@@ -12,7 +12,7 @@ const router = express.Router();
  * Body: { recipients: string[], cc?: string[], subject: string, body: string, dealId: string }
  */
 router.post('/start', async (req, res) => {
-  const { recipients, firstNames, cc, subject, body, dealId } = req.body || {};
+  const { recipients, firstNames, cc, subject, body, dealId, startDate } = req.body || {};
 
   if (!Array.isArray(recipients) || recipients.length === 0) {
     return res.status(400).json({ error: 'recipients (array) is required' });
@@ -25,6 +25,18 @@ router.post('/start', async (req, res) => {
       error: 'firstNames must be an array the same length as recipients',
     });
   }
+  if (!startDate || typeof startDate !== 'string') {
+    return res.status(400).json({ error: 'startDate (YYYY-MM-DD) is required' });
+  }
+  const parsedStartDate = new Date(startDate + 'T00:00:00');
+  if (Number.isNaN(parsedStartDate.getTime())) {
+    return res.status(400).json({ error: 'startDate must be a valid YYYY-MM-DD date' });
+  }
+  const formattedStartDate = parsedStartDate.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+  });
+  const finalBody = body.replace('[START DATE]', formattedStartDate);
 
   try {
     const result = await startSequence({
@@ -32,7 +44,7 @@ router.post('/start', async (req, res) => {
       firstNames: firstNames || [],
       cc: Array.isArray(cc) ? cc : [],
       subject,
-      body,
+      body: finalBody,
       dealId,
     });
     res.json({ message: 'Sequence started', ...result });
