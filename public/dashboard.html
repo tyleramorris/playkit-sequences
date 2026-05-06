@@ -36,6 +36,14 @@
       cancelled: 'Manually cancelled',
     };
 
+    function formatDeal(s) {
+      const company = s.companyName || null;
+      // dealName falls back to dealId (a UUID) when the Attio lookup fails — treat that as absent
+      const deal = (s.dealName && s.dealName !== s.dealId) ? s.dealName : null;
+      if (company && deal) return `${company} / ${deal}`;
+      return company || deal || s.dealId || '';
+    }
+
     function fmt(iso) {
       if (!iso) return '';
       const d = new Date(iso);
@@ -104,7 +112,7 @@
               : '';
             return `
               <tr data-deal-id="${esc(s.dealId || '')}">
-                <td>${esc(s.dealName || s.dealId || '')}</td>
+                <td>${esc(formatDeal(s))}</td>
                 <td class="recipients">${esc(recipients.join(', '))}</td>
                 <td><span class="status ${esc(s.status)}">${esc(s.status)}</span></td>
                 <td>${s.sentCount}/${s.totalEmails}</td>
@@ -120,7 +128,7 @@
           <table>
             <thead>
               <tr>
-                <th>Deal</th>
+                <th>Company / Deal</th>
                 <th>Recipients</th>
                 <th>Status</th>
                 <th>Emails Sent</th>

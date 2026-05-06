@@ -28,7 +28,7 @@ function replySubject(subject) {
  * firstNames is an array aligned with recipients order (same length). It's used to
  * resolve {First Name} and {First Name N} tokens in the hardcoded follow-up bodies.
  */
-async function startSequence({ recipients, cc, subject, body, dealId, firstNames, templateId }) {
+async function startSequence({ recipients, cc, subject, body, dealId, firstNames, templateId, companyName }) {
   const auth = getAuthenticatedClient();
   if (!auth) throw new Error('Not authenticated. Visit /auth first.');
   if (!recipients || recipients.length === 0) throw new Error('At least one recipient is required.');
@@ -51,6 +51,7 @@ async function startSequence({ recipients, cc, subject, body, dealId, firstNames
     id: sequenceId,
     dealId,
     dealName,
+    companyName: companyName || null,
     recipients,
     firstNames: Array.isArray(firstNames) ? firstNames : [],
     cc: cc || [],
@@ -152,6 +153,7 @@ function getAllSequences() {
     sequenceId: seq.id,
     dealId: seq.dealId,
     dealName: seq.dealName,
+    companyName: seq.companyName,
     recipients: seq.recipients,
     cc: seq.cc,
     subject: seq.subject,
