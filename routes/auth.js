@@ -70,10 +70,7 @@ router.get('/callback', async (req, res) => {
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
     const profile = await gmail.users.getProfile({ userId: 'me' });
 
-    res.json({
-      message: 'Authenticated successfully',
-      email: profile.data.emailAddress,
-    });
+    res.redirect('https://playkit-sequences-production.up.railway.app/');
   } catch (err) {
     res.status(500).json({ error: 'OAuth failed', details: err.message });
   }
