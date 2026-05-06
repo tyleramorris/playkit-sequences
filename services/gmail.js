@@ -10,22 +10,22 @@ const MIME_TYPES = {
 };
 
 /**
- * Read all PDF and DOCX files from the attachments folder.
- * Returns an array of { filename, mimeType, content (base64) }.
+ * Read all PDF and DOCX files for a given template.
+ * Checks attachments/<templateId>/ first; falls back to the root attachments/ dir.
  */
-function getAttachments() {
-  if (!fs.existsSync(ATTACHMENTS_DIR)) return [];
+function getAttachments(templateId) {
+  const templateDir = templateId ? path.join(ATTACHMENTS_DIR, templateId) : null;
+  const dir =
+    templateDir && fs.existsSync(templateDir) ? templateDir : ATTACHMENTS_DIR;
 
-  const files = fs.readdirSync(ATTACHMENTS_DIR);
+  if (!fs.existsSync(dir)) return [];
+
   const attachments = [];
-
-  for (const file of files) {
+  for (const file of fs.readdirSync(dir)) {
     const ext = path.extname(file).toLowerCase();
     const mimeType = MIME_TYPES[ext];
     if (!mimeType) continue;
-
-    const filePath = path.join(ATTACHMENTS_DIR, file);
-    const content = fs.readFileSync(filePath).toString('base64');
+    const content = fs.readFileSync(path.join(dir, file)).toString('base64');
     attachments.push({ filename: file, mimeType, content });
   }
 
@@ -115,14 +115,14 @@ function buildRawEmailWithAttachments({ to, cc, from, subject, body, messageId, 
  * Send an email via the Gmail API.
  * Returns { threadId, messageId } so follow-ups can thread correctly.
  */
-async function sendEmail(auth, { to, cc, subject, body, threadId, messageId, references, includeAttachments }) {
+async function sendEmail(auth, { to, cc, subject, body, threadId, messageId, references, includeAttachments, templateId }) {
   const gmail = google.gmail({ version: 'v1', auth });
 
   const profile = await gmail.users.getProfile({ userId: 'me' });
   const from = profile.data.emailAddress;
 
   let raw;
-  const attachments = includeAttachments ? getAttachments() : [];
+  const attachments = includeAttachments ? getAttachments(templateId) : [];
   if (attachments.length > 0) {
     console.log(`[gmail] Attaching ${attachments.length} file(s): ${attachments.map((a) => a.filename).join(', ')}`);
     raw = buildRawEmailWithAttachments({ to, cc, from, subject, body, messageId, references, attachments });

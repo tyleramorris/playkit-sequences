@@ -28,7 +28,7 @@ function replySubject(subject) {
  * firstNames is an array aligned with recipients order (same length). It's used to
  * resolve {First Name} and {First Name N} tokens in the hardcoded follow-up bodies.
  */
-async function startSequence({ recipients, cc, subject, body, dealId, firstNames }) {
+async function startSequence({ recipients, cc, subject, body, dealId, firstNames, templateId }) {
   const auth = getAuthenticatedClient();
   if (!auth) throw new Error('Not authenticated. Visit /auth first.');
   if (!recipients || recipients.length === 0) throw new Error('At least one recipient is required.');
@@ -38,7 +38,7 @@ async function startSequence({ recipients, cc, subject, body, dealId, firstNames
 
   const sequenceId = String(++sequenceCounter);
 
-  const sent = await sendEmail(auth, { to: recipients, cc, subject, body, includeAttachments: true });
+  const sent = await sendEmail(auth, { to: recipients, cc, subject, body, includeAttachments: true, templateId });
 
   // Look up deal name for the dashboard (best effort).
   let dealName = dealId;

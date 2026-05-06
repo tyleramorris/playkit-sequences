@@ -346,14 +346,47 @@
     const body = template.body.replace("{{companyName}}", companyName).replace("{{firstName}}", firstName);
     return { subject, body };
   }
+  var MONTH_NAMES = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+  ];
+  function formatStartDate(startDate) {
+    const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(startDate);
+    if (isoMatch) {
+      const month = parseInt(isoMatch[2], 10);
+      const day = parseInt(isoMatch[3], 10);
+      if (month >= 1 && month <= 12) {
+        return `${MONTH_NAMES[month - 1]} ${day}`;
+      }
+    }
+    const date = /* @__PURE__ */ new Date(`${startDate}T00:00:00`);
+    if (!isNaN(date.getTime())) {
+      return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`;
+    }
+    return startDate;
+  }
   function FormSyncer({
     templateId,
     recipientEmail,
+    startDate,
+    body,
     onSync
   }) {
+    const bodyRef = (0, import_react.useRef)(body);
+    bodyRef.current = body;
     (0, import_react.useEffect)(() => {
-      onSync(templateId, recipientEmail);
-    }, [templateId, recipientEmail, onSync]);
+      onSync(templateId, recipientEmail, startDate, bodyRef.current);
+    }, [templateId, recipientEmail, startDate, onSync]);
     return import_react.default.createElement(import_react.default.Fragment);
   }
   function SequenceForm({
@@ -369,6 +402,8 @@
       (person) => !person.email.endsWith("@playkit.xyz")
     );
     const lastRecipientRef = (0, import_react.useRef)(externalPeople[0]?.email ?? "");
+    const lastStartDateRef = (0, import_react.useRef)(void 0);
+    const appliedFormattedDateRef = (0, import_react.useRef)(null);
     const recipientOptions = externalPeople.map((person) => ({
       label: `${person.name} (${person.email})`,
       value: person.email
@@ -394,8 +429,8 @@
         template: import_client.Forms.string(),
         cadence: import_client.Forms.string(),
         recipient: import_client.Forms.string(),
-        cc: import_client.Forms.array(import_client.Forms.string()),
-        startDate: import_client.Forms.plainDate().optional(),
+        cc: import_client.Forms.array(import_client.Forms.string()).optional(),
+        startDate: import_client.Forms.plainDate(),
         subject: import_client.Forms.string(),
         body: import_client.Forms.string().multiline()
       },
@@ -406,48 +441,62 @@
         cc: [],
         subject: defaultSubject,
         body: defaultBody
-      },
-      (values) => {
-        const errors = {};
-        if (!values.startDate) {
-          errors.startDate = "Start date is required";
-        }
-        return errors;
       }
     );
     const syncForm = (0, import_react.useCallback)(
-      (currentTemplateId, currentRecipientEmail) => {
+      (currentTemplateId, currentRecipientEmail, currentStartDate, currentBody) => {
         const templateChanged = currentTemplateId !== lastTemplateRef.current;
         const recipientChanged = currentRecipientEmail !== lastRecipientRef.current;
-        if (!templateChanged && !recipientChanged) {
+        const dateChanged = currentStartDate !== lastStartDateRef.current;
+        if (!templateChanged && !recipientChanged && !dateChanged) {
           return;
         }
         lastTemplateRef.current = currentTemplateId;
         lastRecipientRef.current = currentRecipientEmail;
-        const t = templates.find((tmpl) => tmpl.id === currentTemplateId);
-        if (!t) {
-          return;
+        lastStartDateRef.current = currentStartDate;
+        let workingBody = currentBody;
+        let workingSubject = null;
+        if (templateChanged || recipientChanged) {
+          const t = templates.find((tmpl) => tmpl.id === currentTemplateId);
+          if (!t) {
+            return;
+          }
+          const selectedPerson = companyData.people.find(
+            (p) => p.email === currentRecipientEmail
+          );
+          const firstName = selectedPerson?.name.split(" ")[0] ?? "";
+          const resolved = resolveTemplate({
+            template: t,
+            firstName,
+            companyName: companyData.name
+          });
+          workingSubject = resolved.subject;
+          workingBody = resolved.body;
+          appliedFormattedDateRef.current = null;
+        } else if (appliedFormattedDateRef.current && workingBody.includes(appliedFormattedDateRef.current)) {
+          workingBody = workingBody.replace(appliedFormattedDateRef.current, "[START DATE]");
+          appliedFormattedDateRef.current = null;
+        } else {
+          appliedFormattedDateRef.current = null;
         }
-        const selectedPerson = companyData.people.find((p) => p.email === currentRecipientEmail);
-        const firstName = selectedPerson?.name.split(" ")[0] ?? "";
-        const { subject, body } = resolveTemplate({
-          template: t,
-          firstName,
-          companyName: companyData.name
-        });
-        change("subject", subject);
-        change("body", body);
+        if (currentStartDate) {
+          const formatted = formatStartDate(currentStartDate);
+          if (workingBody.includes("[START DATE]")) {
+            workingBody = workingBody.replace("[START DATE]", formatted);
+            appliedFormattedDateRef.current = formatted;
+          }
+        }
+        if (workingSubject !== null) {
+          change("subject", workingSubject);
+        }
+        change("body", workingBody);
       },
       [templates, change, companyData.name, companyData.people]
     );
     const handleSubmit = async (values) => {
       setSubmitError(null);
-      if (!values.startDate) {
-        setSubmitError("Start date is required");
-        return;
-      }
       const selectedPerson = companyData.people.find((p) => p.email === values.recipient);
-      const ccList = values.cc.filter((e) => e.length > 0);
+      const ccList = (values.cc ?? []).filter((e) => e.length > 0);
       const payload = {
         recipientEmail: values.recipient,
         recipientName: selectedPerson?.name ?? "",
@@ -457,7 +506,8 @@
         companyName: companyData.name,
         companyRecordId,
         cadence: values.cadence,
-        startDate: values.startDate
+        startDate: values.startDate,
+        templateId: values.template
       };
       try {
         const result = await start_sequence_default(payload);
@@ -482,6 +532,8 @@
         {
           templateId: values.template,
           recipientEmail: values.recipient,
+          startDate: values.startDate,
+          body: values.body,
           onSync: syncForm
         }
       ) }),
@@ -512,7 +564,7 @@
           searchPlaceholder: "Search people..."
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PlainDateInput, { name: "startDate", label: "Email 1 start date" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PlainDateInput, { name: "startDate", label: "Earliest Campaign Start Date" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(WithState, { values: true, children: ({ values }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         Combobox,
         {
@@ -663,7 +715,7 @@
     settings: {}
   };
 
-  // ../../../../private/var/folders/cr/34cvn9s16cx908kpzrghwbxc0000gn/T/tmp-23015-e4qkB6OOy18R-.js
+  // ../../../../private/var/folders/cr/34cvn9s16cx908kpzrghwbxc0000gn/T/tmp-22325-eRpjLGiG3i0i-.js
   registerSettingsSchema(app_settings_default);
   var recordActions = app?.record?.actions;
   var bulkRecordActions = app?.record?.bulkActions;

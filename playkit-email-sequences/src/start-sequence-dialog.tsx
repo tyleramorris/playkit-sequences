@@ -29,18 +29,60 @@ function resolveTemplate({
     return {subject, body}
 }
 
+const MONTH_NAMES = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+]
+
+function formatStartDate(startDate: string): string {
+    const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(startDate)
+    if (isoMatch) {
+        const month = parseInt(isoMatch[2], 10)
+        const day = parseInt(isoMatch[3], 10)
+        if (month >= 1 && month <= 12) {
+            return `${MONTH_NAMES[month - 1]} ${day}`
+        }
+    }
+    const date = new Date(`${startDate}T00:00:00`)
+    if (!isNaN(date.getTime())) {
+        return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`
+    }
+    return startDate
+}
+
 function FormSyncer({
     templateId,
     recipientEmail,
+    startDate,
+    body,
     onSync,
 }: {
     templateId: string
     recipientEmail: string
-    onSync: (templateId: string, recipientEmail: string) => void
+    startDate: string | undefined
+    body: string
+    onSync: (
+        templateId: string,
+        recipientEmail: string,
+        startDate: string | undefined,
+        body: string
+    ) => void
 }): React.ReactElement {
+    const bodyRef = useRef(body)
+    bodyRef.current = body
     useEffect(() => {
-        onSync(templateId, recipientEmail)
-    }, [templateId, recipientEmail, onSync])
+        onSync(templateId, recipientEmail, startDate, bodyRef.current)
+    }, [templateId, recipientEmail, startDate, onSync])
     return React.createElement(React.Fragment)
 }
 
@@ -63,6 +105,8 @@ function SequenceForm({
         (person: LinkedPerson) => !person.email.endsWith("@playkit.xyz")
     )
     const lastRecipientRef = useRef<string>(externalPeople[0]?.email ?? "")
+    const lastStartDateRef = useRef<string | undefined>(undefined)
+    const appliedFormattedDateRef = useRef<string | null>(null)
 
     const recipientOptions = externalPeople.map((person: LinkedPerson) => ({
         label: `${person.name} (${person.email})`,
@@ -96,8 +140,8 @@ function SequenceForm({
                 template: Forms.string(),
                 cadence: Forms.string(),
                 recipient: Forms.string(),
-                cc: Forms.array(Forms.string()),
-                startDate: Forms.plainDate().optional(),
+                cc: Forms.array(Forms.string()).optional(),
+                startDate: Forms.plainDate(),
                 subject: Forms.string(),
                 body: Forms.string().multiline(),
             },
@@ -108,43 +152,70 @@ function SequenceForm({
                 cc: [],
                 subject: defaultSubject,
                 body: defaultBody,
-            },
-            (values) => {
-                const errors: {startDate?: string} = {}
-                if (!values.startDate) {
-                    errors.startDate = "Start date is required"
-                }
-                return errors
             }
         )
 
     const syncForm = useCallback(
-        (currentTemplateId: string, currentRecipientEmail: string) => {
+        (
+            currentTemplateId: string,
+            currentRecipientEmail: string,
+            currentStartDate: string | undefined,
+            currentBody: string
+        ) => {
             const templateChanged = currentTemplateId !== lastTemplateRef.current
             const recipientChanged = currentRecipientEmail !== lastRecipientRef.current
+            const dateChanged = currentStartDate !== lastStartDateRef.current
 
-            if (!templateChanged && !recipientChanged) {
+            if (!templateChanged && !recipientChanged && !dateChanged) {
                 return
             }
 
             lastTemplateRef.current = currentTemplateId
             lastRecipientRef.current = currentRecipientEmail
+            lastStartDateRef.current = currentStartDate
 
-            const t = templates.find((tmpl) => tmpl.id === currentTemplateId)
-            if (!t) {
-                return
+            let workingBody = currentBody
+            let workingSubject: string | null = null
+
+            if (templateChanged || recipientChanged) {
+                const t = templates.find((tmpl) => tmpl.id === currentTemplateId)
+                if (!t) {
+                    return
+                }
+                const selectedPerson = companyData.people.find(
+                    (p) => p.email === currentRecipientEmail
+                )
+                const firstName = selectedPerson?.name.split(" ")[0] ?? ""
+                const resolved = resolveTemplate({
+                    template: t,
+                    firstName,
+                    companyName: companyData.name,
+                })
+                workingSubject = resolved.subject
+                workingBody = resolved.body
+                appliedFormattedDateRef.current = null
+            } else if (
+                appliedFormattedDateRef.current &&
+                workingBody.includes(appliedFormattedDateRef.current)
+            ) {
+                workingBody = workingBody.replace(appliedFormattedDateRef.current, "[START DATE]")
+                appliedFormattedDateRef.current = null
+            } else {
+                appliedFormattedDateRef.current = null
             }
 
-            const selectedPerson = companyData.people.find((p) => p.email === currentRecipientEmail)
-            const firstName = selectedPerson?.name.split(" ")[0] ?? ""
+            if (currentStartDate) {
+                const formatted = formatStartDate(currentStartDate)
+                if (workingBody.includes("[START DATE]")) {
+                    workingBody = workingBody.replace("[START DATE]", formatted)
+                    appliedFormattedDateRef.current = formatted
+                }
+            }
 
-            const {subject, body} = resolveTemplate({
-                template: t,
-                firstName,
-                companyName: companyData.name,
-            })
-            change("subject", subject)
-            change("body", body)
+            if (workingSubject !== null) {
+                change("subject", workingSubject)
+            }
+            change("body", workingBody)
         },
         [templates, change, companyData.name, companyData.people]
     )
@@ -153,18 +224,14 @@ function SequenceForm({
         template: string
         cadence: string
         recipient: string
-        cc: string[]
-        startDate: string | undefined
+        cc: string[] | undefined
+        startDate: string
         subject: string
         body: string
     }) => {
         setSubmitError(null)
-        if (!values.startDate) {
-            setSubmitError("Start date is required")
-            return
-        }
         const selectedPerson = companyData.people.find((p) => p.email === values.recipient)
-        const ccList = values.cc.filter((e: string) => e.length > 0)
+        const ccList = (values.cc ?? []).filter((e: string) => e.length > 0)
 
         const payload: StartSequencePayload = {
             recipientEmail: values.recipient,
@@ -176,6 +243,7 @@ function SequenceForm({
             companyRecordId,
             cadence: values.cadence as Cadence,
             startDate: values.startDate,
+            templateId: values.template,
         }
 
         try {
@@ -206,6 +274,8 @@ function SequenceForm({
                     <FormSyncer
                         templateId={values.template}
                         recipientEmail={values.recipient}
+                        startDate={values.startDate}
+                        body={values.body}
                         onSync={syncForm}
                     />
                 )}
@@ -228,7 +298,7 @@ function SequenceForm({
                 options={recipientOptions}
                 searchPlaceholder="Search people..."
             />
-            <PlainDateInput name="startDate" label="Email 1 start date" />
+            <PlainDateInput name="startDate" label="Earliest Campaign Start Date" />
             <WithState values>
                 {({values}) => (
                     <Combobox
