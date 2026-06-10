@@ -120,10 +120,19 @@ async function sendEmail(auth, { to, cc, subject, body, threadId, messageId, ref
 
   const profile = await gmail.users.getProfile({ userId: 'me' });
   const emailAddress = profile.data.emailAddress;
-  const oauth2 = google.oauth2({ version: 'v2', auth });
-  const userInfo = await oauth2.userinfo.get();
-  const displayName = userInfo.data.name;
-  const from = displayName ? `"${displayName}" <${emailAddress}>` : emailAddress;
+  let from = emailAddress;
+  try {
+    const tokenInfo = auth.credentials;
+    if (tokenInfo && tokenInfo.access_token) {
+      const resp = await fetch(
+        `https://www.googleapis.com/oauth2/v2/userinfo?access_token=${tokenInfo.access_token}`
+      );
+      if (resp.ok) {
+        const info = await resp.json();
+        if (info.name) from = `"${info.name}" <${emailAddress}>`;
+      }
+    }
+  } catch (_) {}
 
   let raw;
   const attachments = includeAttachments ? getAttachments(templateId) : [];
