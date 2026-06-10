@@ -119,7 +119,11 @@ async function sendEmail(auth, { to, cc, subject, body, threadId, messageId, ref
   const gmail = google.gmail({ version: 'v1', auth });
 
   const profile = await gmail.users.getProfile({ userId: 'me' });
-  const from = profile.data.emailAddress;
+  const emailAddress = profile.data.emailAddress;
+  const oauth2 = google.oauth2({ version: 'v2', auth });
+  const userInfo = await oauth2.userinfo.get();
+  const displayName = userInfo.data.name;
+  const from = displayName ? `"${displayName}" <${emailAddress}>` : emailAddress;
 
   let raw;
   const attachments = includeAttachments ? getAttachments(templateId) : [];

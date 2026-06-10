@@ -1,6 +1,6 @@
 const { sendEmail } = require('./gmail');
 const { getAuthenticatedClient } = require('../routes/auth');
-const { FOLLOWUPS, resolveFirstNames } = require('./followupTemplates');
+const { FOLLOWUPS, resolveFirstNames, extractGreetingFromBody } = require('./followupTemplates');
 const { getDeal } = require('./attio');
 
 /**
@@ -57,6 +57,7 @@ async function startSequence({ recipients, cc, subject, body, dealId, firstNames
     cc: cc || [],
     subject,
     body,
+    greetingName: extractGreetingFromBody(body),
     threadId: sent.threadId,
     messageId: sent.messageId,
     references: sent.messageId,
@@ -80,7 +81,7 @@ async function startSequence({ recipients, cc, subject, body, dealId, firstNames
         return;
       }
       try {
-        const resolvedBody = resolveFirstNames(step.body, sequence.firstNames);
+        const resolvedBody = resolveFirstNames(step.body, sequence.firstNames, sequence.greetingName);
         const res = await sendEmail(currentAuth, {
           to: sequence.recipients,
           cc: sequence.cc,
@@ -148,6 +149,54 @@ function cancelSequenceById(sequenceId, reason = 'cancelled') {
   return { found: true, status: seq.status };
 }
 
+/**
+ * Immediately send the next pending follow-up for a sequence, bypassing its timer.
+ */
+async function pushNextEmail(sequenceId) {
+  const sequence = sequences.get(sequenceId);
+  if (!sequence) return { found: false };
+  if (sequence.status !== 'active') return { found: true, status: sequence.status };
+
+  const followupIndex = sequence.sentCount - 1;
+  if (followupIndex >= FOLLOWUPS.length) return { found: true, done: true };
+
+  const step = FOLLOWUPS[followupIndex];
+
+  const timeout = sequence.scheduledJobs[followupIndex];
+  if (timeout) clearTimeout(timeout);
+  sequence.scheduledJobs[followupIndex] = null;
+
+  const auth = getAuthenticatedClient();
+  if (!auth) throw new Error('Not authenticated. Visit /auth first.');
+
+  const followupSubject = replySubject(sequence.subject);
+  const resolvedBody = resolveFirstNames(step.body, sequence.firstNames, sequence.greetingName);
+
+  const res = await sendEmail(auth, {
+    to: sequence.recipients,
+    cc: sequence.cc,
+    subject: followupSubject,
+    body: resolvedBody,
+    threadId: sequence.threadId,
+    messageId: sequence.messageId,
+    references: sequence.references,
+  });
+
+  sequence.messageId = res.messageId;
+  sequence.references = `${sequence.references} ${res.messageId}`;
+  sequence.sentCount += 1;
+  sequence.lastActivityAt = new Date().toISOString();
+  console.log(`Sequence ${sequenceId}: pushed step ${step.step} (${step.label})`);
+
+  if (sequence.sentCount >= sequence.totalEmails) {
+    sequence.status = 'completed';
+    sequence.exitReason = 'completed';
+    console.log(`Sequence ${sequenceId}: completed`);
+  }
+
+  return { found: true, step: step.step, label: step.label };
+}
+
 function getAllSequences() {
   return Array.from(sequences.values()).map((seq) => ({
     sequenceId: seq.id,
@@ -187,4 +236,5 @@ module.exports = {
   cancelSequenceById,
   getAllSequences,
   getActiveSequences,
+  pushNextEmail,
 };

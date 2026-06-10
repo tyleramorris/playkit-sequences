@@ -57,21 +57,36 @@ Julia`,
 ];
 
 /**
- * Join a list of names with natural English commas: "A", "A and B", "A, B, and C".
+ * Join a list of names with natural English commas: "A", "A and B", "everybody" for 3+.
  */
 function joinNames(names) {
   const cleaned = (names || []).filter(Boolean);
   if (cleaned.length === 0) return 'there';
   if (cleaned.length === 1) return cleaned[0];
   if (cleaned.length === 2) return `${cleaned[0]} and ${cleaned[1]}`;
-  return `${cleaned.slice(0, -1).join(', ')}, and ${cleaned[cleaned.length - 1]}`;
+  return 'everybody';
+}
+
+/**
+ * Find the first "Hi ..." or "Hey ..." greeting line in a body and return
+ * the name portion (everything between the greeting word and the first comma).
+ */
+function extractGreetingFromBody(body) {
+  if (!body) return null;
+  for (const line of body.split('\n')) {
+    const trimmed = line.trim();
+    const match = trimmed.match(/^(?:Hi|Hey) (.+?),/);
+    if (match) return match[1];
+  }
+  return null;
 }
 
 /**
  * Replace {First Name} and {First Name N} tokens in a body string.
  * firstNames is an array aligned with recipients order (1-indexed in the template).
+ * greetingName, when provided, overrides joinNames for {First Name} replacement.
  */
-function resolveFirstNames(body, firstNames) {
+function resolveFirstNames(body, firstNames, greetingName) {
   const list = Array.isArray(firstNames) ? firstNames : [];
 
   let out = body.replace(/\{First Name (\d+)\}/g, (_, n) => {
@@ -79,9 +94,9 @@ function resolveFirstNames(body, firstNames) {
     return list[idx] || '';
   });
 
-  out = out.replace(/\{First Name\}/g, joinNames(list));
+  out = out.replace(/\{First Name\}/g, greetingName || joinNames(list));
 
   return out;
 }
 
-module.exports = { FOLLOWUPS, resolveFirstNames, joinNames };
+module.exports = { FOLLOWUPS, resolveFirstNames, joinNames, extractGreetingFromBody };

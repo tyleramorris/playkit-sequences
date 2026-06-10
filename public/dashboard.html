@@ -21,6 +21,9 @@
     .cancel-btn { font: inherit; padding: 4px 10px; border: 1px solid #d0d0d0; background: #fff; border-radius: 6px; cursor: pointer; }
     .cancel-btn:hover:not(:disabled) { background: #fdecec; border-color: #b02a37; color: #b02a37; }
     .cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .push-btn { font: inherit; padding: 4px 10px; border: 1px solid #aad4b0; background: #e6f4ea; color: #1e7e34; border-radius: 6px; cursor: pointer; margin-left: 6px; }
+    .push-btn:hover:not(:disabled) { background: #c8eacd; border-color: #1e7e34; }
+    .push-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -54,6 +57,29 @@
       return String(s ?? '').replace(/[&<>"]/g, (c) =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])
       );
+    }
+
+    async function onPushNextClick(event) {
+      const btn = event.currentTarget;
+      const sequenceId = btn.dataset.sequenceId;
+      if (!sequenceId) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      try {
+        const res = await fetch(`/sequences/${encodeURIComponent(sequenceId)}/push-next`, {
+          method: 'POST',
+        });
+        if (!res.ok) {
+          const { error } = await res.json().catch(() => ({}));
+          throw new Error(error || `HTTP ${res.status}`);
+        }
+        await load();
+      } catch (err) {
+        alert(`Failed to push: ${err.message}`);
+        btn.disabled = false;
+        btn.textContent = 'Push Next';
+      }
     }
 
     async function onCancelClick(event) {
@@ -108,7 +134,8 @@
             const recipients = [...(s.recipients || [])];
             if (s.cc && s.cc.length) recipients.push(`cc: ${s.cc.join(', ')}`);
             const action = s.status === 'active' && s.dealId
-              ? `<button class="cancel-btn" data-deal-id="${esc(s.dealId)}">Cancel</button>`
+              ? `<button class="cancel-btn" data-deal-id="${esc(s.dealId)}">Cancel</button>` +
+                `<button class="push-btn" data-sequence-id="${esc(s.sequenceId)}">Push Next</button>`
               : '';
             return `
               <tr data-deal-id="${esc(s.dealId || '')}">
@@ -143,6 +170,9 @@
 
         document.querySelectorAll('.cancel-btn').forEach((btn) => {
           btn.addEventListener('click', onCancelClick);
+        });
+        document.querySelectorAll('.push-btn').forEach((btn) => {
+          btn.addEventListener('click', onPushNextClick);
         });
       } catch (err) {
         document.getElementById('root').innerHTML =
