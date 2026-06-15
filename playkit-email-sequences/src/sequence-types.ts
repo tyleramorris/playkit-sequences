@@ -29,4 +29,5 @@ export interface StartSequencePayload {
     cadence: Cadence
     startDate: string
     templateId: string
+    contractLink?: string
 }

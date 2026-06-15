@@ -115,7 +115,7 @@ function buildRawEmailWithAttachments({ to, cc, from, subject, body, messageId, 
  * Send an email via the Gmail API.
  * Returns { threadId, messageId } so follow-ups can thread correctly.
  */
-async function sendEmail(auth, { to, cc, subject, body, threadId, messageId, references, includeAttachments, templateId }) {
+async function sendEmail(auth, { to, cc, subject, body, threadId, messageId, references }) {
   const gmail = google.gmail({ version: 'v1', auth });
 
   const profile = await gmail.users.getProfile({ userId: 'me' });
@@ -134,14 +134,7 @@ async function sendEmail(auth, { to, cc, subject, body, threadId, messageId, ref
     }
   } catch (_) {}
 
-  let raw;
-  const attachments = includeAttachments ? getAttachments(templateId) : [];
-  if (attachments.length > 0) {
-    console.log(`[gmail] Attaching ${attachments.length} file(s): ${attachments.map((a) => a.filename).join(', ')}`);
-    raw = buildRawEmailWithAttachments({ to, cc, from, subject, body, messageId, references, attachments });
-  } else {
-    raw = buildRawEmail({ to, cc, from, subject, body, messageId, references });
-  }
+  const raw = buildRawEmail({ to, cc, from, subject, body, messageId, references });
 
   const params = {
     userId: 'me',

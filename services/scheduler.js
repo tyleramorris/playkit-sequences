@@ -28,7 +28,7 @@ function replySubject(subject) {
  * firstNames is an array aligned with recipients order (same length). It's used to
  * resolve {First Name} and {First Name N} tokens in the hardcoded follow-up bodies.
  */
-async function startSequence({ recipients, cc, subject, body, dealId, firstNames, templateId, companyName }) {
+async function startSequence({ recipients, cc, subject, body, dealId, firstNames, templateId, companyName, contractLink }) {
   const auth = getAuthenticatedClient();
   if (!auth) throw new Error('Not authenticated. Visit /auth first.');
   if (!recipients || recipients.length === 0) throw new Error('At least one recipient is required.');
@@ -38,7 +38,8 @@ async function startSequence({ recipients, cc, subject, body, dealId, firstNames
 
   const sequenceId = String(++sequenceCounter);
 
-  const sent = await sendEmail(auth, { to: recipients, cc, subject, body, includeAttachments: true, templateId });
+  const email1Body = body.replace('{Contract Link}', contractLink || '');
+  const sent = await sendEmail(auth, { to: recipients, cc, subject, body: email1Body });
 
   // Look up deal name for the dashboard (best effort).
   let dealName = dealId;
@@ -52,6 +53,7 @@ async function startSequence({ recipients, cc, subject, body, dealId, firstNames
     dealId,
     dealName,
     companyName: companyName || null,
+    contractLink: contractLink || null,
     recipients,
     firstNames: Array.isArray(firstNames) ? firstNames : [],
     cc: cc || [],

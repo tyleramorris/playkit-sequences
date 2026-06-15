@@ -12,7 +12,7 @@ const router = express.Router();
  * Body: { recipients: string[], cc?: string[], subject: string, body: string, dealId: string }
  */
 router.post('/start', async (req, res) => {
-  const { recipients, firstNames, cc, subject, body, dealId, startDate, templateId, companyName } = req.body || {};
+  const { recipients, firstNames, cc, subject, body, dealId, startDate, templateId, companyName, contractLink } = req.body || {};
 
   if (!Array.isArray(recipients) || recipients.length === 0) {
     return res.status(400).json({ error: 'recipients (array) is required' });
@@ -48,6 +48,7 @@ router.post('/start', async (req, res) => {
       dealId,
       templateId: typeof templateId === 'string' ? templateId : undefined,
       companyName: typeof companyName === 'string' ? companyName : undefined,
+      contractLink: typeof contractLink === 'string' ? contractLink : undefined,
     });
     res.json({ message: 'Sequence started', ...result });
   } catch (err) {

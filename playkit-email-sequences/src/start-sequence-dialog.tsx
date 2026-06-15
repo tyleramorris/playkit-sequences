@@ -144,6 +144,7 @@ function SequenceForm({
                 startDate: Forms.plainDate(),
                 subject: Forms.string(),
                 body: Forms.string().multiline(),
+                contractLink: Forms.string().optional(),
             },
             {
                 template: defaultTemplate.id,
@@ -152,6 +153,7 @@ function SequenceForm({
                 cc: [],
                 subject: defaultSubject,
                 body: defaultBody,
+                contractLink: "",
             }
         )
 
@@ -228,6 +230,7 @@ function SequenceForm({
         startDate: string
         subject: string
         body: string
+        contractLink?: string
     }) => {
         setSubmitError(null)
         const selectedPerson = companyData.people.find((p) => p.email === values.recipient)
@@ -244,6 +247,7 @@ function SequenceForm({
             cadence: values.cadence as Cadence,
             startDate: values.startDate,
             templateId: values.template,
+            contractLink: values.contractLink ?? "",
         }
 
         try {
@@ -345,6 +349,7 @@ function SequenceForm({
             </WithState>
             <TextInput name="subject" label="Subject" placeholder="Email subject line" />
             <TextArea name="body" label="Body" resizable />
+            <TextInput name="contractLink" label="Contract Link (optional)" />
             <SubmitButton label="Send" />
         </Form>
     )
