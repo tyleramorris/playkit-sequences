@@ -40,7 +40,7 @@ async function startSequence({ recipients, cc, subject, body, dealId, templateId
 
   const greetingName = extractGreetingFromBody(body) || (companyName ? `${companyName} team` : 'there');
   const email1Body = body
-    .replace('{First Name}', greetingName || '')
+    .replace('{Company Name}', companyName || 'there')
     .replace('{Contract Link}', contractLink || '');
   const sent = await sendEmail(auth, { to: recipients, cc, subject, body: email1Body });
 
