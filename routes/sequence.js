@@ -20,10 +20,13 @@ router.post('/start', async (req, res) => {
   if (!subject || !body || !dealId) {
     return res.status(400).json({ error: 'subject, body, and dealId are required' });
   }
-  if (firstNames && (!Array.isArray(firstNames) || firstNames.length !== recipients.length)) {
-    return res.status(400).json({
-      error: 'firstNames must be an array the same length as recipients',
-    });
+  let resolvedFirstNames = Array.isArray(firstNames) ? firstNames : [];
+  if (resolvedFirstNames.length > recipients.length) {
+    resolvedFirstNames = resolvedFirstNames.slice(0, recipients.length);
+  } else {
+    while (resolvedFirstNames.length < recipients.length) {
+      resolvedFirstNames.push('');
+    }
   }
   if (!startDate || typeof startDate !== 'string') {
     return res.status(400).json({ error: 'startDate (YYYY-MM-DD) is required' });
@@ -41,7 +44,7 @@ router.post('/start', async (req, res) => {
   try {
     const result = await startSequence({
       recipients,
-      firstNames: firstNames || [],
+      firstNames: resolvedFirstNames,
       cc: Array.isArray(cc) ? cc : [],
       subject,
       body: finalBody,
