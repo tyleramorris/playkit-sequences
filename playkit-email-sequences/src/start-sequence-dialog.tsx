@@ -237,12 +237,9 @@ function SequenceForm({
         const selectedPerson = companyData.people.find((p) => p.email === values.recipient)
         const ccList = (values.cc ?? []).filter((e: string) => e.length > 0)
 
-        const firstNames = [selectedPerson?.name.split(" ")[0] ?? ""]
-
         const payload: StartSequencePayload = {
             recipientEmail: values.recipient,
             recipientName: selectedPerson?.name ?? "",
-            firstNames,
             cc: ccList,
             subject: values.subject,
             body: values.body,

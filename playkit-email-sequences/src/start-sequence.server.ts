@@ -13,7 +13,6 @@ export default async function startSequence(payload: StartSequencePayload): Prom
 
     const requestBody = {
         recipients: [payload.recipientEmail],
-        firstNames: [payload.recipientName.split(" ")[0] ?? ""],
         cc: payload.cc,
         subject: payload.subject,
         body: payload.body,

@@ -12,21 +12,13 @@ const router = express.Router();
  * Body: { recipients: string[], cc?: string[], subject: string, body: string, dealId: string }
  */
 router.post('/start', async (req, res) => {
-  const { recipients, firstNames, cc, subject, body, dealId, startDate, templateId, companyName, contractLink } = req.body || {};
+  const { recipients, cc, subject, body, dealId, startDate, templateId, companyName, contractLink } = req.body || {};
 
   if (!Array.isArray(recipients) || recipients.length === 0) {
     return res.status(400).json({ error: 'recipients (array) is required' });
   }
   if (!subject || !body || !dealId) {
     return res.status(400).json({ error: 'subject, body, and dealId are required' });
-  }
-  let resolvedFirstNames = Array.isArray(firstNames) ? firstNames : [];
-  if (resolvedFirstNames.length > recipients.length) {
-    resolvedFirstNames = resolvedFirstNames.slice(0, recipients.length);
-  } else {
-    while (resolvedFirstNames.length < recipients.length) {
-      resolvedFirstNames.push('');
-    }
   }
   if (!startDate || typeof startDate !== 'string') {
     return res.status(400).json({ error: 'startDate (YYYY-MM-DD) is required' });
@@ -44,7 +36,6 @@ router.post('/start', async (req, res) => {
   try {
     const result = await startSequence({
       recipients,
-      firstNames: resolvedFirstNames,
       cc: Array.isArray(cc) ? cc : [],
       subject,
       body: finalBody,
