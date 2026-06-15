@@ -38,7 +38,10 @@ async function startSequence({ recipients, cc, subject, body, dealId, templateId
 
   const sequenceId = String(++sequenceCounter);
 
-  const email1Body = body.replace('{Contract Link}', contractLink || '');
+  const greetingName = companyName ? `${companyName} team` : extractGreetingFromBody(body);
+  const email1Body = body
+    .replace('{First Name}', greetingName || '')
+    .replace('{Contract Link}', contractLink || '');
   const sent = await sendEmail(auth, { to: recipients, cc, subject, body: email1Body });
 
   // Look up deal name for the dashboard (best effort).
@@ -59,7 +62,7 @@ async function startSequence({ recipients, cc, subject, body, dealId, templateId
     cc: cc || [],
     subject,
     body,
-    greetingName: companyName ? `${companyName} team` : extractGreetingFromBody(body),
+    greetingName,
     threadId: sent.threadId,
     messageId: sent.messageId,
     references: sent.messageId,
