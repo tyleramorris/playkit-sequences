@@ -38,10 +38,10 @@ async function startSequence({ recipients, cc, subject, body, dealId, templateId
 
   const sequenceId = String(++sequenceCounter);
 
-  const greetingName = extractGreetingFromBody(body) || (companyName ? `${companyName} team` : 'there');
   const email1Body = body
     .replace('{Company Name}', companyName || 'there')
     .replace('{Contract Link}', contractLink || '');
+  const greetingName = extractGreetingFromBody(email1Body) || (companyName ? `${companyName} team` : 'there');
   const sent = await sendEmail(auth, { to: recipients, cc, subject, body: email1Body });
 
   // Look up deal name for the dashboard (best effort).

@@ -67,7 +67,9 @@ function resolveFirstNames(body, firstNames, greetingName) {
     return list[idx] || '';
   });
 
-  out = out.replace(/\{First Name\}/g, greetingName || joinNames(list));
+  const greeting = greetingName || joinNames(list);
+  out = out.replace(/\{First Name\}/g, greeting);
+  out = out.replace(/\{Company Name\} team/g, greeting);
 
   return out;
 }
