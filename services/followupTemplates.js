@@ -46,11 +46,11 @@ function joinNames(names) {
  * the name portion. Strips HTML tags first so it works with HTML bodies.
  */
 function extractGreetingFromBody(body) {
-  if (!body) return 'there';
+  if (!body) return null;
   const stripped = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   const firstLine = stripped.split(/[,\n]/)[0].trim();
   const match = firstLine.match(/^(?:Hi|Hey)\s+(.+?)$/i);
-  if (!match) return 'there';
+  if (!match) return null;
   return match[1].trim();
 }
 

@@ -38,7 +38,7 @@ async function startSequence({ recipients, cc, subject, body, dealId, templateId
 
   const sequenceId = String(++sequenceCounter);
 
-  const greetingName = companyName ? `${companyName} team` : extractGreetingFromBody(body);
+  const greetingName = extractGreetingFromBody(body) || (companyName ? `${companyName} team` : 'there');
   const email1Body = body
     .replace('{First Name}', greetingName || '')
     .replace('{Contract Link}', contractLink || '');
