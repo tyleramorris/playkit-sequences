@@ -43,16 +43,15 @@ function joinNames(names) {
 
 /**
  * Find the first "Hi ..." or "Hey ..." greeting line in a body and return
- * the name portion (everything between the greeting word and the first comma).
+ * the name portion. Strips HTML tags first so it works with HTML bodies.
  */
 function extractGreetingFromBody(body) {
-  if (!body) return null;
-  for (const line of body.split('\n')) {
-    const trimmed = line.trim();
-    const match = trimmed.match(/^(?:Hi|Hey) (.+?),/);
-    if (match) return match[1];
-  }
-  return null;
+  if (!body) return 'there';
+  const stripped = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const firstLine = stripped.split(/[,\n]/)[0].trim();
+  const match = firstLine.match(/^(?:Hi|Hey)\s+(.+?)$/i);
+  if (!match) return 'there';
+  return match[1].trim();
 }
 
 /**
