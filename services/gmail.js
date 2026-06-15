@@ -65,7 +65,7 @@ function buildEmailHeaders({ to, cc, from, subject, messageId, references }) {
  * message in the same thread.
  */
 function toHtmlBody(body) {
-  return body.replace(/\n/g, '<br>\r\n');
+  return `<html><body>${body}</body></html>`;
 }
 
 function buildRawEmail({ to, cc, from, subject, body, messageId, references }) {
